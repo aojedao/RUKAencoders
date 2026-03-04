@@ -1,0 +1,235 @@
+import serial
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+from collections import deque
+import re
+import datetime
+import sys
+
+# --- Configuration ---
+SERIAL_PORT = 'COM6'    # CHANGE THIS to your Arduino's serial port (e.g., 'COM3' or '/dev/ttyACM0')
+BAUD_RATE = 115200      # CHANGE THIS to your Arduino's baud rate
+MAX_SAMPLES = 100       # Maximum number of data points to display on the graph
+LOG_FILENAME = f"arduino_readings_{datetime.datetime.now():%Y%m%d_%H%M%S}.txt"
+
+# Data structure to hold the history of readings for each signal
+# Key format: "BoardXSensorYAxis" e.g., "B1S1X"
+DATA_STREAMS = {}
+
+# Define all unique data streams based on your description
+# Boards 1-3 (5 sensors each): BxSyAxis (x=1..3, y=1..5, Axis=X,Y,Z) -> 3 * 5 * 3 = 45 streams
+# Boards 4-9 (1 sensor each): BxS1Axis (x=4..9, y=1, Axis=X,Y,Z) -> 6 * 1 * 3 = 18 streams
+# TOTAL: 63 unique data streams. (Let's simplify and assume the Arduino prints ALL 5 sensors for B1-B3,
+# but if it only prints ONE sensor for B4-B9, we'll cover all 63)
+
+# Function to generate the stream keys
+def generate_stream_keys():
+    keys = []
+    # Boards 1 to 3 (5 sensors)
+    for board in range(1, 4):
+        for sensor in range(1, 6):
+            for axis in ['X', 'Y', 'Z']:
+                keys.append(f"Board{board}Sensor{sensor}{axis}")
+    # Boards 4 to 9 (1 sensor)
+    for board in range(4, 10):
+        # We assume they are implicitly Sensor 1 since there's only one
+        sensor = 1 
+        for axis in ['X', 'Y', 'Z']:
+            keys.append(f"B{board}S{sensor}{axis}")
+    return keys
+
+# Initialize data structures (Time is the common x-axis for all)
+ALL_KEYS = generate_stream_keys()
+TIME_DATA = deque(maxlen=MAX_SAMPLES)
+
+for key in ALL_KEYS:
+    DATA_STREAMS[key] = deque(maxlen=MAX_SAMPLES)
+    # Initialize with 0 to prevent Matplotlib errors on first draw
+    DATA_STREAMS[key].append(0.0) 
+
+# Regular expression to parse the input: "Board1Sensor11X:122.23"
+# Group 1: Board Number (1)
+# Group 2: Sensor Number (1)
+# Group 3: Axis (X)
+# Group 4: Value (122.23)
+PARSE_PATTERN = re.compile(r"Board(\d+)Sensor(\d+)([XYZ]):([\d\.]+)")
+
+# --- Serial and Logging Setup ---
+
+try:
+    ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=0.1)
+    ser.flushInput()
+    print(f"Successfully connected to {SERIAL_PORT} at {BAUD_RATE} baud.")
+except serial.SerialException as e:
+    print(f"Error opening serial port {SERIAL_PORT}: {e}")
+    sys.exit(1)
+
+# Open log file for appending, write header
+try:
+    log_file = open(LOG_FILENAME, 'a')
+    # Write a header for the log file
+    log_file.write("Timestamp," + ",".join(ALL_KEYS) + "\n")
+    print(f"Logging data to {LOG_FILENAME}")
+except IOError as e:
+    print(f"Error opening log file: {e}")
+    ser.close()
+    sys.exit(1)
+
+# --- Data Acquisition and Parsing Function ---
+
+def get_serial_data():
+    """Reads one line from serial, parses it, updates data structure, and logs."""
+    try:
+        if ser.in_waiting > 0:
+            # Read a line, decode it from bytes, and strip whitespace/newline
+            line = ser.readline().decode('utf-8').strip()
+            
+            if not line:
+                return False # Nothing to process
+            
+            match = PARSE_PATTERN.match(line)
+
+            if match:
+                board_num = match.group(1)
+                sensor_num = match.group(2)
+                axis = match.group(3)
+                value_str = match.group(4)
+                
+                try:
+                    value = float(value_str)
+                except ValueError:
+                    # print(f"Skipping line due to invalid value: {line}")
+                    return False
+                
+                key = f"B{board_num}S{sensor_num}{axis}"
+                
+                if key in DATA_STREAMS:
+                    # 1. Update data structure
+                    # The time data will be appended only once per complete "time step"
+                    # For simplicity in this example, we append on every valid reading.
+                    current_time = datetime.datetime.now()
+                    
+                    # Ensure all deques are the same size. If this is the first reading for this
+                    # time step, append the time.
+                    if len(TIME_DATA) == 0 or current_time > TIME_DATA[-1]:
+                        TIME_DATA.append(current_time)
+                        
+                    # 2. Add the new value
+                    DATA_STREAMS[key].append(value)
+                    
+                    # 3. Log the data (in a simplified format for now, log the raw line)
+                    log_file.write(f"{datetime.datetime.now():%H:%M:%S.%f},{key},{value}\n")
+                    log_file.flush() # Ensure it's written to disk immediately
+                    
+                    return True # New data processed
+                else:
+                    # This case should not happen if ALL_KEYS is correct, but useful for debugging
+                    # print(f"Skipping line due to unknown key: {key} in line: {line}")
+                    pass
+
+    except serial.SerialException as e:
+        print(f"Serial error: {e}")
+    except KeyboardInterrupt:
+        print("\nStopping...")
+        return None # Indicate to stop animation
+    except Exception as e:
+        # print(f"An unexpected error occurred: {e}")
+        pass
+        
+    return False
+
+# --- Plotting Setup ---
+
+# Create 9 figures, one for each board (B1 to B9)
+fig, axes = plt.subplots(nrows=3, ncols=3, figsize=(15, 12))
+fig.suptitle('Arduino Sensor Readings Live Plot', fontsize=16)
+plt.subplots_adjust(hspace=0.4, wspace=0.3)
+
+# Flatten the 3x3 array of axes for easier indexing
+axes = axes.flatten()
+
+# Prepare lines for each graph
+lines = {}
+plot_index = 0
+
+for board_num in range(1, 10):
+    ax = axes[plot_index]
+    ax.set_title(f'Board {board_num} Readings')
+    ax.tick_params(axis='x', rotation=45)
+    ax.grid(True)
+    
+    # Boards 1-3 have 5 sensors; Boards 4-9 have 1 sensor (S1)
+    max_sensor = 5 if board_num <= 3 else 1
+    
+    # List of keys that belong to this board's plot
+    board_keys = []
+    for sensor in range(1, max_sensor + 1):
+        for axis in ['X', 'Y', 'Z']:
+            key = f"B{board_num}S{sensor}{axis}"
+            board_keys.append(key)
+    
+    # Plot the initial line for each stream belonging to this board
+    for key in board_keys:
+        # Initial plot: line, = ax.plot(X_data, Y_data, label)
+        line, = ax.plot(TIME_DATA, DATA_STREAMS.get(key, [0.0]), label=key.replace(f"B{board_num}",""))
+        lines[key] = line
+        
+    ax.legend(loc='upper right', fontsize='small')
+    plot_index += 1
+
+
+# --- Animation Function ---
+
+def animate(i):
+    """Function called by FuncAnimation to update the plot."""
+    result = get_serial_data()
+    if result is None:
+        # Stop the animation if get_serial_data returns None (e.g., on KeyboardInterrupt)
+        anim.event_source.stop()
+        ser.close()
+        log_file.close()
+        print("\nSerial connection and logging closed.")
+        plt.close(fig)
+        return []
+    
+    # If new data was processed, update all plots
+    if result:
+        time_stamps = list(TIME_DATA)
+        
+        # Update each line object
+        for key, line in lines.items():
+            data_values = list(DATA_STREAMS.get(key, [0.0]))
+            # Matplotlib requires x and y data for the line update
+            line.set_data(time_stamps[-len(data_values):], data_values)
+
+        # Rescale and redraw all board plots
+        for ax in axes:
+            if time_stamps:
+                ax.relim()
+                ax.autoscale_view()
+            
+            # Reformat x-axis labels to show time
+            if time_stamps:
+                # Rotate labels to prevent overlap
+                for label in ax.get_xticklabels():
+                    label.set_rotation(45)
+                ax.figure.canvas.draw()
+    
+    return list(lines.values()) # Return all updated artists
+
+# --- Main Execution ---
+
+try:
+    # Start the animation loop
+    # interval=50 means the animate function is called every 50ms (20 FPS)
+    anim = animation.FuncAnimation(fig, animate, interval=50, blit=False)
+    plt.show()
+
+except KeyboardInterrupt:
+    print("\nProgram terminated by user.")
+finally:
+    # Ensure serial and log file are closed if the program exits unexpectedly
+    if 'ser' in locals() and ser.is_open:
+        ser.close()
+    if 'log_file' in locals() and not log_file.closed:
+        log_file.close()

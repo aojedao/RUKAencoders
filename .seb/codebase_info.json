@@ -1,0 +1,649 @@
+{
+    "containing_directory": "C:\\Users\\Alejandro\\Documents\\NYU\\GRAIL\\RUKA\\SensorTest\\AllSensorReadings",
+    "files": [
+        {
+            "file_path": "C:\\Users\\Alejandro\\Documents\\NYU\\GRAIL\\RUKA\\SensorTest\\AllSensorReadings\\MuxMultiSensor\\MuxMultiSensor.ino",
+            "tags": [],
+            "classes": [],
+            "functions": [
+                "tcaSelect",
+                "setup",
+                "loop"
+            ],
+            "includes": [],
+            "included_by": [],
+            "text": "/*\n  Qwiic Mux Shield - PCA9548A/TCA9548A Basic Control\n  By: Gemini (code revision)\n  Original code by: Nathan Seidle\n  SparkFun Electronics\n\n  This code is a simplified version designed to read from a single sensor\n  board connected to Mux channel 0. It serves as a baseline to ensure\n  I2C communication is working correctly.\n\n  Hardware Connections:\n  - Attach the Qwiic Mux Shield to your microcontroller.\n  - Plug a single sensor board into port 0.\n  - Open the Serial Monitor at 115200 baud to see the raw output.\n  - Open the Serial Plotter to see the data visualization.\n*/\n\n#include <Wire.h>\n#include <MLX90393.h> \n\n#define TCAADDR 0x70 // The I2C address of the TCA9548A multiplexer\n\n// Constants for your new hardware setup\n#define NUMBER_OF_BOARDS 5\n#define NUMBER_OF_SENSORS_PER_BOARD 5\n\n// The I2C addresses for the 5 sensors on each board\n// NOTE: These are the addresses from your original code.\n// Please update them if your addresses are different.\nuint8_t sensorAddresses[NUMBER_OF_SENSORS_PER_BOARD] = {0x0C, 0x13, 0x12, 0x10, 0x11};\n\n// Create a 2D array for the MLX90393 sensor objects and their data\nMLX90393 mlx[NUMBER_OF_BOARDS][NUMBER_OF_SENSORS_PER_BOARD];\nMLX90393::txyz data[NUMBER_OF_BOARDS][NUMBER_OF_SENSORS_PER_BOARD];\n\n// A 2D array to track which sensors have been successfully initialized\nbool sensorIsInitialized[NUMBER_OF_BOARDS][NUMBER_OF_SENSORS_PER_BOARD];\n\n// Y-axis offsets for visualization on the Arduino Plotter\nint yOffsets[NUMBER_OF_BOARDS] = {0};\n\n// Function to select a specific channel on the TCA9548A multiplexer\nvoid tcaSelect(uint8_t i) {\n  if (i > 7) return; // The TCA9548A has 8 channels (0-7)\n\n  Wire1.beginTransmission(TCAADDR);\n  Wire1.write(1 << i);\n  Wire1.endTransmission();\n}\n\nvoid setup() {\n  Serial.begin(115200);\n  Serial.println(\"Qwiic Mux Shield Read Example - Single Board Version\");\n  Wire1.begin(); // Start the I2C bus used by the mux\n  Wire1.setClock(400000); // Set the I2C clock speed\n  delay(10);\n\n  // Initialize the sensors on all boards\n  for (byte board = 0; board < NUMBER_OF_BOARDS; board++) {\n    tcaSelect(board); // Enable the multiplexer channel for this board\n    delay(50); // Add a longer delay to ensure the bus is stable\n  \n    Serial.print(\"--- Initializing sensors on Board \");\n    Serial.print(board);\n    Serial.println(\" ---\");\n  \n    for (byte sensor = 0; sensor < NUMBER_OF_SENSORS_PER_BOARD; sensor++) {\n      Serial.print(\"Attempting to initialize Sensor \");\n      Serial.print(sensor);\n      Serial.print(\" at address 0x\");\n      Serial.println(sensorAddresses[sensor], HEX);\n\n      byte status = mlx[board][sensor].begin(sensorAddresses[sensor], -1, Wire1);\n    \n      if (status == 0) {\n        Serial.println(\"Initialization successful!\");\n        mlx[board][sensor].startBurst(0xF); // Start burst mode\n        sensorIsInitialized[board][sensor] = true;\n      } else {\n        Serial.print(\"Initialization FAILED! Status: \");\n        Serial.println(status);\n        sensorIsInitialized[board][sensor] = false;\n      }\n      delay(10); // Short delay between sensor initializations\n    }\n    Serial.println(\"------------------------------------\");\n  }\n  Serial.println(\"All sensors initialized. Mux Shield online.\");\n}\n\nvoid loop() {\n  for (byte board = 0; board < NUMBER_OF_BOARDS; board++) {\n    tcaSelect(board); // Tell mux to connect to this board's port\n    delay(10); // Ensure the bus connection is stable\n    //Serial.print(\"BOARD NUMBER IS: \");\n    //Serial.println(board);\n\n    for (byte sensor = 0; sensor < NUMBER_OF_SENSORS_PER_BOARD; sensor++) {\n      // Only attempt to read if the sensor was initialized successfully\n      if (sensorIsInitialized[board][sensor]) {\n        mlx[board][sensor].readBurstData(data[board][sensor]);\n\n        // Apply the Y-axis offset based on both board and sensor\n        int yValOffset = data[board][sensor].y + (board * 8000); // 1000 is an example offset per board\n\n        // Print the X, Y(offset), and Z data, separated by tabs, for the Arduino Plotter\n        Serial.print(\"Board\" + String(board) + \"SensorX:\");\n        Serial.print(data[board][sensor].x + (board * 8000));\n        Serial.print(\"\\t\");\n        Serial.print(\"Board\" + String(board) + \"SensorY:\");\n        Serial.print(yValOffset);\n        Serial.print(\"\\t\");\n        Serial.print(\"Board\" + String(board) + \"SensorZ:\");\n        Serial.print(data[board][sensor].z + (board * 8000));\n        Serial.print(\"\\t\");\n      } else {\n        // If the sensor failed to initialize, print a placeholder to maintain plotter alignment\n        Serial.print(0);\n        Serial.print(\"\\t\");\n        Serial.print(yOffsets[board]);\n        Serial.print(\"\\t\");\n        Serial.print(0);\n        Serial.print(\"\\t\");\n      }\n    }\n  }\n  Serial.println(); // Print a newline at the end of each full reading cycle\n  delay(1); // Wait a short period before the next reading cycle\n}\n"
+        },
+        {
+            "file_path": "C:\\Users\\Alejandro\\Documents\\NYU\\GRAIL\\RUKA\\SensorTest\\AllSensorReadings\\MuxMultiSensor\\Mux_Control.ino",
+            "tags": [],
+            "classes": [],
+            "functions": [
+                "enableMuxPort",
+                "disableMuxPort"
+            ],
+            "includes": [],
+            "included_by": [],
+            "text": "/*\n  Basic control and commands for the PCA9548A/TCA9548A I2C multiplexer\n*/\n\n#define MUX_ADDR 0x70 //7-bit unshifted default I2C Address\n\n//Enables a specific port number\nvoid enableMuxPort(byte portNumber)\n{\n  if (portNumber > 7) portNumber = 7;\n\n  //Read the current mux settings\n  Wire.requestFrom(MUX_ADDR, 1);\n  if (!Wire.available()) return; //Error\n  byte settings = Wire.read();\n\n  //Set the wanted bit to enable the port\n  settings |= (1 << portNumber);\n\n  //Write the updated settings\n  Wire.beginTransmission(MUX_ADDR);\n  Wire.write(settings);\n  Wire.endTransmission();\n}\n\n//Disables a specific port number\nvoid disableMuxPort(byte portNumber)\n{\n  if (portNumber > 7) portNumber = 7;\n\n  //Read the current mux settings\n  Wire.requestFrom(MUX_ADDR, 1);\n  if (!Wire.available()) return; //Error\n  byte settings = Wire.read();\n\n  //Clear the wanted bit to disable the port\n  settings &= ~(1 << portNumber);\n\n  //Write the updated settings\n  Wire.beginTransmission(MUX_ADDR);\n  Wire.write(settings);\n  Wire.endTransmission();\n}\n"
+        },
+        {
+            "file_path": "C:\\Users\\Alejandro\\Documents\\NYU\\GRAIL\\RUKA\\SensorTest\\AllSensorReadings\\AS5600\\AS5600_ESP32_QTPy\\AS5600_ESP32_QTPy.ino",
+            "tags": [],
+            "classes": [],
+            "functions": [
+                "setup",
+                "loop"
+            ],
+            "includes": [],
+            "included_by": [],
+            "text": "/*\n * AS5600 Magnetic Position Sensor Reader\n * Target: ESP32 QT Py (Adafruit ESP32-PICO-D4)\n * \n * Reads angle position from AS5600 sensor via I2C (STEMMA QT connector)\n * and outputs to Serial Monitor.\n * \n * Hardware Connections:\n * - AS5600 connected via STEMMA QT cable to ESP32 QT Py I2C port\n * - Uses Wire1 (STEMMA QT connector)\n * \n * Required Library:\n * - Adafruit AS5600 (install via Library Manager)\n */\n\n#include <Wire.h>\n#include <Adafruit_AS5600.h>\n\nAdafruit_AS5600 as5600;  // Create sensor object\n\nvoid setup() {\n  // Initialize Serial communication\n  Serial.begin(115200);\n  while (!Serial) {\n    ; // Wait for Serial port to connect (needed for native USB)\n  }\n  delay(1000);\n  \n  Serial.println(\"AS5600 Magnetic Position Sensor - ESP32 QT Py\");\n  Serial.println(\"==============================================\");\n  \n  // Initialize I2C on Wire1 (STEMMA QT connector)\n  Wire1.begin();\n  \n  // Initialize AS5600 sensor with Wire1\n  if (!as5600.begin(0x36, &Wire1)) {\n    Serial.println(\"\u2717 ERROR: AS5600 sensor not found!\");\n    Serial.println(\"  Check:\");\n    Serial.println(\"  - STEMMA QT cable is connected\");\n    Serial.println(\"  - AS5600 sensor has power\");\n    while (1) {\n      delay(1000);\n    }\n  }\n  \n  Serial.println(\"\u2713 AS5600 sensor detected!\");\n  Serial.println(\"\\nStarting readings...\");\n  Serial.println(\"Format: Angle (degrees) | Raw Value\");\n  Serial.println(\"---------------------------------------\");\n}\n\nvoid loop() {\n  // Read angle value\n  uint16_t rawAngle = as5600.getRawAngle();\n  float angleDegrees = (rawAngle * 360.0) / 4096.0;\n  \n  // Print to Serial Monitor\n  Serial.print(\"Angle:\");\n  Serial.println(angleDegrees, 2);\n  \n  delay(100); // Read every 100ms\n}\n"
+        }
+    ],
+    "functions": [
+        {
+            "name": "tcaSelect",
+            "in_scope": true,
+            "calls": [
+                "beginTransmission",
+                "write",
+                "endTransmission"
+            ],
+            "is_called_by": [
+                "setup",
+                "loop"
+            ],
+            "scope": "global",
+            "text": "void tcaSelect(uint8_t i) {\n  if (i > 7) return; // The TCA9548A has 8 channels (0-7)\n\n  Wire1.beginTransmission(TCAADDR);\n  Wire1.write(1 << i);\n  Wire1.endTransmission();\n}",
+            "file": "C:\\Users\\Alejandro\\Documents\\NYU\\GRAIL\\RUKA\\SensorTest\\AllSensorReadings\\MuxMultiSensor\\MuxMultiSensor.ino",
+            "location": {
+                "line_start": 42,
+                "line_end": 48,
+                "column_start": 0,
+                "column_end": 1
+            }
+        },
+        {
+            "name": "setup",
+            "in_scope": true,
+            "calls": [
+                "delay",
+                "print",
+                "println",
+                "startBurst",
+                "begin",
+                "setClock",
+                "tcaSelect"
+            ],
+            "is_called_by": [],
+            "scope": "global",
+            "text": "void setup() {\n  Serial.begin(115200);\n  Serial.println(\"Qwiic Mux Shield Read Example - Single Board Version\");\n  Wire1.begin(); // Start the I2C bus used by the mux\n  Wire1.setClock(400000); // Set the I2C clock speed\n  delay(10);\n\n  // Initialize the sensors on all boards\n  for (byte board = 0; board < NUMBER_OF_BOARDS; board++) {\n    tcaSelect(board); // Enable the multiplexer channel for this board\n    delay(50); // Add a longer delay to ensure the bus is stable\n  \n    Serial.print(\"--- Initializing sensors on Board \");\n    Serial.print(board);\n    Serial.println(\" ---\");\n  \n    for (byte sensor = 0; sensor < NUMBER_OF_SENSORS_PER_BOARD; sensor++) {\n      Serial.print(\"Attempting to initialize Sensor \");\n      Serial.print(sensor);\n      Serial.print(\" at address 0x\");\n      Serial.println(sensorAddresses[sensor], HEX);\n\n      byte status = mlx[board][sensor].begin(sensorAddresses[sensor], -1, Wire1);\n    \n      if (status == 0) {\n        Serial.println(\"Initialization successful!\");\n        mlx[board][sensor].startBurst(0xF); // Start burst mode\n        sensorIsInitialized[board][sensor] = true;\n      } else {\n        Serial.print(\"Initialization FAILED! Status: \");\n        Serial.println(status);\n        sensorIsInitialized[board][sensor] = false;\n      }\n      delay(10); // Short delay between sensor initializations\n    }\n    Serial.println(\"------------------------------------\");\n  }\n  Serial.println(\"All sensors initialized. Mux Shield online.\");\n}",
+            "file": "C:\\Users\\Alejandro\\Documents\\NYU\\GRAIL\\RUKA\\SensorTest\\AllSensorReadings\\MuxMultiSensor\\MuxMultiSensor.ino",
+            "location": {
+                "line_start": 50,
+                "line_end": 88,
+                "column_start": 0,
+                "column_end": 1
+            }
+        },
+        {
+            "name": "loop",
+            "in_scope": true,
+            "calls": [
+                "print",
+                "println",
+                "String",
+                "readBurstData",
+                "tcaSelect",
+                "delay"
+            ],
+            "is_called_by": [],
+            "scope": "global",
+            "text": "void loop() {\n  for (byte board = 0; board < NUMBER_OF_BOARDS; board++) {\n    tcaSelect(board); // Tell mux to connect to this board's port\n    delay(10); // Ensure the bus connection is stable\n    //Serial.print(\"BOARD NUMBER IS: \");\n    //Serial.println(board);\n\n    for (byte sensor = 0; sensor < NUMBER_OF_SENSORS_PER_BOARD; sensor++) {\n      // Only attempt to read if the sensor was initialized successfully\n      if (sensorIsInitialized[board][sensor]) {\n        mlx[board][sensor].readBurstData(data[board][sensor]);\n\n        // Apply the Y-axis offset based on both board and sensor\n        int yValOffset = data[board][sensor].y + (board * 8000); // 1000 is an example offset per board\n\n        // Print the X, Y(offset), and Z data, separated by tabs, for the Arduino Plotter\n        Serial.print(\"Board\" + String(board) + \"SensorX:\");\n        Serial.print(data[board][sensor].x + (board * 8000));\n        Serial.print(\"\\t\");\n        Serial.print(\"Board\" + String(board) + \"SensorY:\");\n        Serial.print(yValOffset);\n        Serial.print(\"\\t\");\n        Serial.print(\"Board\" + String(board) + \"SensorZ:\");\n        Serial.print(data[board][sensor].z + (board * 8000));\n        Serial.print(\"\\t\");\n      } else {\n        // If the sensor failed to initialize, print a placeholder to maintain plotter alignment\n        Serial.print(0);\n        Serial.print(\"\\t\");\n        Serial.print(yOffsets[board]);\n        Serial.print(\"\\t\");\n        Serial.print(0);\n        Serial.print(\"\\t\");\n      }\n    }\n  }\n  Serial.println(); // Print a newline at the end of each full reading cycle\n  delay(1); // Wait a short period before the next reading cycle\n}",
+            "file": "C:\\Users\\Alejandro\\Documents\\NYU\\GRAIL\\RUKA\\SensorTest\\AllSensorReadings\\MuxMultiSensor\\MuxMultiSensor.ino",
+            "location": {
+                "line_start": 90,
+                "line_end": 128,
+                "column_start": 0,
+                "column_end": 1
+            }
+        },
+        {
+            "name": "enableMuxPort",
+            "in_scope": true,
+            "calls": [
+                "requestFrom",
+                "beginTransmission",
+                "read",
+                "available",
+                "write",
+                "endTransmission"
+            ],
+            "is_called_by": [],
+            "scope": "global",
+            "text": "void enableMuxPort(byte portNumber)\n{\n  if (portNumber > 7) portNumber = 7;\n\n  //Read the current mux settings\n  Wire.requestFrom(MUX_ADDR, 1);\n  if (!Wire.available()) return; //Error\n  byte settings = Wire.read();\n\n  //Set the wanted bit to enable the port\n  settings |= (1 << portNumber);\n\n  //Write the updated settings\n  Wire.beginTransmission(MUX_ADDR);\n  Wire.write(settings);\n  Wire.endTransmission();\n}",
+            "file": "C:\\Users\\Alejandro\\Documents\\NYU\\GRAIL\\RUKA\\SensorTest\\AllSensorReadings\\MuxMultiSensor\\Mux_Control.ino",
+            "location": {
+                "line_start": 7,
+                "line_end": 23,
+                "column_start": 0,
+                "column_end": 1
+            }
+        },
+        {
+            "name": "disableMuxPort",
+            "in_scope": true,
+            "calls": [
+                "requestFrom",
+                "beginTransmission",
+                "read",
+                "write",
+                "available",
+                "endTransmission"
+            ],
+            "is_called_by": [],
+            "scope": "global",
+            "text": "void disableMuxPort(byte portNumber)\n{\n  if (portNumber > 7) portNumber = 7;\n\n  //Read the current mux settings\n  Wire.requestFrom(MUX_ADDR, 1);\n  if (!Wire.available()) return; //Error\n  byte settings = Wire.read();\n\n  //Clear the wanted bit to disable the port\n  settings &= ~(1 << portNumber);\n\n  //Write the updated settings\n  Wire.beginTransmission(MUX_ADDR);\n  Wire.write(settings);\n  Wire.endTransmission();\n}",
+            "file": "C:\\Users\\Alejandro\\Documents\\NYU\\GRAIL\\RUKA\\SensorTest\\AllSensorReadings\\MuxMultiSensor\\Mux_Control.ino",
+            "location": {
+                "line_start": 26,
+                "line_end": 42,
+                "column_start": 0,
+                "column_end": 1
+            }
+        },
+        {
+            "name": "setup",
+            "in_scope": true,
+            "calls": [
+                "println",
+                "delay",
+                "begin"
+            ],
+            "is_called_by": [],
+            "scope": "global",
+            "text": "void setup() {\n  // Initialize Serial communication\n  Serial.begin(115200);\n  while (!Serial) {\n    ; // Wait for Serial port to connect (needed for native USB)\n  }\n  delay(1000);\n  \n  Serial.println(\"AS5600 Magnetic Position Sensor - ESP32 QT Py\");\n  Serial.println(\"==============================================\");\n  \n  // Initialize I2C on Wire1 (STEMMA QT connector)\n  Wire1.begin();\n  \n  // Initialize AS5600 sensor with Wire1\n  if (!as5600.begin(0x36, &Wire1)) {\n    Serial.println(\"\u2717 ERROR: AS5600 sensor not found!\");\n    Serial.println(\"  Check:\");\n    Serial.println(\"  - STEMMA QT cable is connected\");\n    Serial.println(\"  - AS5600 sensor has power\");\n    while (1) {\n      delay(1000);\n    }\n  }\n  \n  Serial.println(\"\u2713 AS5600 sensor detected!\");\n  Serial.println(\"\\nStarting readings...\");\n  Serial.println(\"Format: Angle (degrees) | Raw Value\");\n  Serial.println(\"---------------------------------------\");\n}",
+            "file": "C:\\Users\\Alejandro\\Documents\\NYU\\GRAIL\\RUKA\\SensorTest\\AllSensorReadings\\AS5600\\AS5600_ESP32_QTPy\\AS5600_ESP32_QTPy.ino",
+            "location": {
+                "line_start": 20,
+                "line_end": 49,
+                "column_start": 0,
+                "column_end": 1
+            }
+        },
+        {
+            "name": "loop",
+            "in_scope": true,
+            "calls": [
+                "getRawAngle",
+                "print",
+                "delay",
+                "println"
+            ],
+            "is_called_by": [],
+            "scope": "global",
+            "text": "void loop() {\n  // Read angle value\n  uint16_t rawAngle = as5600.getRawAngle();\n  float angleDegrees = (rawAngle * 360.0) / 4096.0;\n  \n  // Print to Serial Monitor\n  Serial.print(\"Angle:\");\n  Serial.println(angleDegrees, 2);\n  \n  delay(100); // Read every 100ms\n}",
+            "file": "C:\\Users\\Alejandro\\Documents\\NYU\\GRAIL\\RUKA\\SensorTest\\AllSensorReadings\\AS5600\\AS5600_ESP32_QTPy\\AS5600_ESP32_QTPy.ino",
+            "location": {
+                "line_start": 51,
+                "line_end": 61,
+                "column_start": 0,
+                "column_end": 1
+            }
+        },
+        {
+            "name": "beginTransmission",
+            "in_scope": false,
+            "is_called_by": [
+                "tcaSelect"
+            ]
+        },
+        {
+            "name": "write",
+            "in_scope": false,
+            "is_called_by": [
+                "tcaSelect"
+            ]
+        },
+        {
+            "name": "endTransmission",
+            "in_scope": false,
+            "is_called_by": [
+                "tcaSelect"
+            ]
+        },
+        {
+            "name": "delay",
+            "in_scope": false,
+            "is_called_by": [
+                "setup"
+            ]
+        },
+        {
+            "name": "print",
+            "in_scope": false,
+            "is_called_by": [
+                "setup"
+            ]
+        },
+        {
+            "name": "println",
+            "in_scope": false,
+            "is_called_by": [
+                "setup"
+            ]
+        },
+        {
+            "name": "startBurst",
+            "in_scope": false,
+            "is_called_by": [
+                "setup"
+            ]
+        },
+        {
+            "name": "begin",
+            "in_scope": false,
+            "is_called_by": [
+                "setup"
+            ]
+        },
+        {
+            "name": "print",
+            "in_scope": false,
+            "is_called_by": []
+        },
+        {
+            "name": "println",
+            "in_scope": false,
+            "is_called_by": []
+        },
+        {
+            "name": "println",
+            "in_scope": false,
+            "is_called_by": []
+        },
+        {
+            "name": "begin",
+            "in_scope": false,
+            "is_called_by": []
+        },
+        {
+            "name": "delay",
+            "in_scope": false,
+            "is_called_by": []
+        },
+        {
+            "name": "delay",
+            "in_scope": false,
+            "is_called_by": []
+        },
+        {
+            "name": "setClock",
+            "in_scope": false,
+            "is_called_by": [
+                "setup"
+            ]
+        },
+        {
+            "name": "print",
+            "in_scope": false,
+            "is_called_by": []
+        },
+        {
+            "name": "print",
+            "in_scope": false,
+            "is_called_by": []
+        },
+        {
+            "name": "println",
+            "in_scope": false,
+            "is_called_by": []
+        },
+        {
+            "name": "println",
+            "in_scope": false,
+            "is_called_by": []
+        },
+        {
+            "name": "print",
+            "in_scope": false,
+            "is_called_by": []
+        },
+        {
+            "name": "begin",
+            "in_scope": false,
+            "is_called_by": []
+        },
+        {
+            "name": "println",
+            "in_scope": false,
+            "is_called_by": []
+        },
+        {
+            "name": "println",
+            "in_scope": false,
+            "is_called_by": []
+        },
+        {
+            "name": "print",
+            "in_scope": false,
+            "is_called_by": []
+        },
+        {
+            "name": "print",
+            "in_scope": false,
+            "is_called_by": [
+                "loop"
+            ]
+        },
+        {
+            "name": "println",
+            "in_scope": false,
+            "is_called_by": [
+                "loop"
+            ]
+        },
+        {
+            "name": "print",
+            "in_scope": false,
+            "is_called_by": []
+        },
+        {
+            "name": "print",
+            "in_scope": false,
+            "is_called_by": []
+        },
+        {
+            "name": "print",
+            "in_scope": false,
+            "is_called_by": []
+        },
+        {
+            "name": "String",
+            "in_scope": false,
+            "is_called_by": [
+                "loop"
+            ]
+        },
+        {
+            "name": "print",
+            "in_scope": false,
+            "is_called_by": []
+        },
+        {
+            "name": "print",
+            "in_scope": false,
+            "is_called_by": []
+        },
+        {
+            "name": "print",
+            "in_scope": false,
+            "is_called_by": []
+        },
+        {
+            "name": "print",
+            "in_scope": false,
+            "is_called_by": []
+        },
+        {
+            "name": "print",
+            "in_scope": false,
+            "is_called_by": []
+        },
+        {
+            "name": "print",
+            "in_scope": false,
+            "is_called_by": []
+        },
+        {
+            "name": "readBurstData",
+            "in_scope": false,
+            "is_called_by": [
+                "loop"
+            ]
+        },
+        {
+            "name": "print",
+            "in_scope": false,
+            "is_called_by": []
+        },
+        {
+            "name": "delay",
+            "in_scope": false,
+            "is_called_by": [
+                "loop"
+            ]
+        },
+        {
+            "name": "String",
+            "in_scope": false,
+            "is_called_by": []
+        },
+        {
+            "name": "print",
+            "in_scope": false,
+            "is_called_by": []
+        },
+        {
+            "name": "String",
+            "in_scope": false,
+            "is_called_by": []
+        },
+        {
+            "name": "delay",
+            "in_scope": false,
+            "is_called_by": []
+        },
+        {
+            "name": "print",
+            "in_scope": false,
+            "is_called_by": []
+        },
+        {
+            "name": "print",
+            "in_scope": false,
+            "is_called_by": []
+        },
+        {
+            "name": "print",
+            "in_scope": false,
+            "is_called_by": []
+        },
+        {
+            "name": "requestFrom",
+            "in_scope": false,
+            "is_called_by": [
+                "enableMuxPort"
+            ]
+        },
+        {
+            "name": "beginTransmission",
+            "in_scope": false,
+            "is_called_by": [
+                "enableMuxPort"
+            ]
+        },
+        {
+            "name": "read",
+            "in_scope": false,
+            "is_called_by": [
+                "enableMuxPort"
+            ]
+        },
+        {
+            "name": "available",
+            "in_scope": false,
+            "is_called_by": [
+                "enableMuxPort"
+            ]
+        },
+        {
+            "name": "write",
+            "in_scope": false,
+            "is_called_by": [
+                "enableMuxPort"
+            ]
+        },
+        {
+            "name": "endTransmission",
+            "in_scope": false,
+            "is_called_by": [
+                "enableMuxPort"
+            ]
+        },
+        {
+            "name": "requestFrom",
+            "in_scope": false,
+            "is_called_by": [
+                "disableMuxPort"
+            ]
+        },
+        {
+            "name": "beginTransmission",
+            "in_scope": false,
+            "is_called_by": [
+                "disableMuxPort"
+            ]
+        },
+        {
+            "name": "read",
+            "in_scope": false,
+            "is_called_by": [
+                "disableMuxPort"
+            ]
+        },
+        {
+            "name": "write",
+            "in_scope": false,
+            "is_called_by": [
+                "disableMuxPort"
+            ]
+        },
+        {
+            "name": "available",
+            "in_scope": false,
+            "is_called_by": [
+                "disableMuxPort"
+            ]
+        },
+        {
+            "name": "endTransmission",
+            "in_scope": false,
+            "is_called_by": [
+                "disableMuxPort"
+            ]
+        },
+        {
+            "name": "println",
+            "in_scope": false,
+            "is_called_by": [
+                "setup"
+            ]
+        },
+        {
+            "name": "delay",
+            "in_scope": false,
+            "is_called_by": [
+                "setup"
+            ]
+        },
+        {
+            "name": "begin",
+            "in_scope": false,
+            "is_called_by": [
+                "setup"
+            ]
+        },
+        {
+            "name": "begin",
+            "in_scope": false,
+            "is_called_by": []
+        },
+        {
+            "name": "println",
+            "in_scope": false,
+            "is_called_by": []
+        },
+        {
+            "name": "delay",
+            "in_scope": false,
+            "is_called_by": []
+        },
+        {
+            "name": "println",
+            "in_scope": false,
+            "is_called_by": []
+        },
+        {
+            "name": "println",
+            "in_scope": false,
+            "is_called_by": []
+        },
+        {
+            "name": "begin",
+            "in_scope": false,
+            "is_called_by": []
+        },
+        {
+            "name": "println",
+            "in_scope": false,
+            "is_called_by": []
+        },
+        {
+            "name": "println",
+            "in_scope": false,
+            "is_called_by": []
+        },
+        {
+            "name": "println",
+            "in_scope": false,
+            "is_called_by": []
+        },
+        {
+            "name": "println",
+            "in_scope": false,
+            "is_called_by": []
+        },
+        {
+            "name": "println",
+            "in_scope": false,
+            "is_called_by": []
+        },
+        {
+            "name": "println",
+            "in_scope": false,
+            "is_called_by": []
+        },
+        {
+            "name": "getRawAngle",
+            "in_scope": false,
+            "is_called_by": [
+                "loop"
+            ]
+        },
+        {
+            "name": "print",
+            "in_scope": false,
+            "is_called_by": [
+                "loop"
+            ]
+        },
+        {
+            "name": "delay",
+            "in_scope": false,
+            "is_called_by": [
+                "loop"
+            ]
+        },
+        {
+            "name": "println",
+            "in_scope": false,
+            "is_called_by": [
+                "loop"
+            ]
+        }
+    ],
+    "unprocessed_files": [
+        "C:\\Users\\Alejandro\\Documents\\NYU\\GRAIL\\RUKA\\SensorTest\\AllSensorReadings\\AllSensorReadings",
+        "C:\\Users\\Alejandro\\Documents\\NYU\\GRAIL\\RUKA\\SensorTest\\AllSensorReadings\\SEB.MD"
+    ]
+}
