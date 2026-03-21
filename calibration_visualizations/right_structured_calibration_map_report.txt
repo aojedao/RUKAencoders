@@ -1,0 +1,160 @@
+================================================================================
+MOTOR-SENSOR COUPLING ANALYSIS: RIGHT HAND
+================================================================================
+
+PER-MOTOR ANALYSIS
+--------------------------------------------------------------------------------
+
+Motor 7:
+  Primary sensor: Sensor 1 (Δ 110.48°)
+  Sensors showing >5° change: 4
+    Sensor 0: 6.42°
+    Sensor 1: 110.48°
+    Sensor 2: 101.16°
+    Sensor 3: 8.44°
+    Sensor 4: 0.26°
+
+Motor 8:
+  Primary sensor: Sensor 3 (Δ 2.55°)
+  Sensors showing >5° change: 0
+    Sensor 1: 0.44°
+    Sensor 2: 0.88°
+    Sensor 3: 2.55°
+    Sensor 4: 0.27°
+    Sensor 5: 0.08°
+
+Motor 9:
+  Primary sensor: Sensor 2 (Δ 22.24°)
+  Sensors showing >5° change: 3
+    Sensor 0: 0.53°
+    Sensor 1: 15.73°
+    Sensor 2: 22.24°
+    Sensor 3: 13.27°
+    Sensor 4: 0.27°
+    Sensor 5: 0.08°
+    Sensor 6: 0.17°
+
+Motor 12:
+  Primary sensor: Sensor 6 (Δ 20.04°)
+  Sensors showing >5° change: 2
+    Sensor 1: 0.08°
+    Sensor 2: 0.70°
+    Sensor 3: 1.67°
+    Sensor 4: 5.01°
+    Sensor 5: 1.85°
+    Sensor 6: 20.04°
+
+Motor 13:
+  Primary sensor: Sensor 4 (Δ 114.25°)
+  Sensors showing >5° change: 1
+    Sensor 0: 0.18°
+    Sensor 1: 0.52°
+    Sensor 2: 0.53°
+    Sensor 4: 114.25°
+    Sensor 5: 1.84°
+    Sensor 6: 3.42°
+
+Motor 14:
+  Primary sensor: Sensor 5 (Δ 9.84°)
+  Sensors showing >5° change: 1
+    Sensor 0: 2.28°
+    Sensor 1: 0.52°
+    Sensor 2: 3.08°
+    Sensor 4: 2.28°
+    Sensor 5: 9.84°
+    Sensor 6: 1.59°
+
+PER-SENSOR ANALYSIS
+--------------------------------------------------------------------------------
+
+Sensor 0:
+  Most affected by: Motor 7 (Δ 6.42°)
+  Motors affecting >5°: 1
+    Motor 7: 6.42°
+    Motor 9: 0.53°
+    Motor 13: 0.18°
+    Motor 14: 2.28°
+
+Sensor 1:
+  Most affected by: Motor 7 (Δ 110.48°)
+  Motors affecting >5°: 2
+    Motor 7: 110.48°
+    Motor 8: 0.44°
+    Motor 9: 15.73°
+    Motor 12: 0.08°
+    Motor 13: 0.52°
+    Motor 14: 0.52°
+
+Sensor 2:
+  Most affected by: Motor 7 (Δ 101.16°)
+  Motors affecting >5°: 2
+    Motor 7: 101.16°
+    Motor 8: 0.88°
+    Motor 9: 22.24°
+    Motor 12: 0.70°
+    Motor 13: 0.53°
+    Motor 14: 3.08°
+
+Sensor 3:
+  Most affected by: Motor 9 (Δ 13.27°)
+  Motors affecting >5°: 2
+    Motor 7: 8.44°
+    Motor 8: 2.55°
+    Motor 9: 13.27°
+    Motor 12: 1.67°
+
+Sensor 4:
+  Most affected by: Motor 13 (Δ 114.25°)
+  Motors affecting >5°: 2
+    Motor 7: 0.26°
+    Motor 8: 0.27°
+    Motor 9: 0.27°
+    Motor 12: 5.01°
+    Motor 13: 114.25°
+    Motor 14: 2.28°
+
+Sensor 5:
+  Most affected by: Motor 14 (Δ 9.84°)
+  Motors affecting >5°: 1
+    Motor 8: 0.08°
+    Motor 9: 0.08°
+    Motor 12: 1.85°
+    Motor 13: 1.84°
+    Motor 14: 9.84°
+
+Sensor 6:
+  Most affected by: Motor 12 (Δ 20.04°)
+  Motors affecting >5°: 1
+    Motor 9: 0.17°
+    Motor 12: 20.04°
+    Motor 13: 3.42°
+    Motor 14: 1.59°
+
+MOTOR ANGLE RANGE ESTIMATES
+--------------------------------------------------------------------------------
+(derived from motor_max_open_ticks / motor_max_closed_ticks using compute_motor_pos inverse)
+Motor 7: open_tick=2943.0, closed_tick=1609.0, open_ang=12.26°, closed_ang=0.00°, Δ=12.26°
+Motor 8: open_tick=1758.0, closed_tick=1542.0, open_ang=-0.00°, closed_ang=90.00°, Δ=90.00°
+Motor 9: open_tick=1376.0, closed_tick=715.0, open_ang=-0.00°, closed_ang=80.00°, Δ=80.00°
+Motor 12: open_tick=1177.0, closed_tick=574.0, open_ang=-0.00°, closed_ang=145.00°, Δ=145.00°
+Motor 13: open_tick=3163.0, closed_tick=2053.0, open_ang=-0.00°, closed_ang=90.00°, Δ=90.00°
+Motor 14: open_tick=2365.0, closed_tick=1752.0, open_ang=25.00°, closed_ang=-19.41°, Δ=44.41°
+
+SENSOR REACHABLE RANGES
+--------------------------------------------------------------------------------
+Sensor 0: min=80.86°, max=87.28°, Δ=6.42°
+Sensor 1: min=118.56°, max=229.48°, Δ=110.92°
+Sensor 2: min=34.54°, max=135.70°, Δ=101.16°
+Sensor 3: min=68.82°, max=90.53°, Δ=21.71°
+Sensor 4: min=98.26°, max=212.78°, Δ=114.52°
+Sensor 5: min=302.08°, max=313.77°, Δ=11.69°
+Sensor 6: min=40.17°, max=63.63°, Δ=23.46°
+
+COUPLING STATISTICS
+--------------------------------------------------------------------------------
+Mean coupling (all motor-sensor pairs): 10.78°
+Max coupling: 114.25°
+Std dev: 27.70°
+Pairs with coupling > 5°: 11
+Pairs with coupling > 10°: 7
+Pairs with coupling > 20°: 5

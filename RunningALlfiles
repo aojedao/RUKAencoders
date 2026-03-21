@@ -1,0 +1,4 @@
+python replay_encoders.py --serial-port /dev/ttyACM0 --label second_test
+python retargeting/replay_demo.py
+python calibrate_motors.py --hand-type right
+sudo chmod 666 /dev/ttyUSB1
