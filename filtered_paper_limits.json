@@ -1,0 +1,65 @@
+{
+    "0": {
+        "name": "Index Abduction",
+        "motor_id": 8,
+        "commanded_min_ticks": 1250,
+        "commanded_max_ticks": 1641,
+        "filtered_sensor_min_deg": 89.3,
+        "filtered_sensor_max_deg": 103.27,
+        "filtered_sensor_span_deg": 13.97
+    },
+    "1": {
+        "name": "Index DIP",
+        "motor_id": 7,
+        "commanded_min_ticks": 1600,
+        "commanded_max_ticks": 2983,
+        "filtered_sensor_min_deg": 38.85,
+        "filtered_sensor_max_deg": 328.71,
+        "filtered_sensor_span_deg": 289.86
+    },
+    "2": {
+        "name": "Index PIP",
+        "motor_id": 7,
+        "commanded_min_ticks": 1600,
+        "commanded_max_ticks": 2983,
+        "filtered_sensor_min_deg": 3.52,
+        "filtered_sensor_max_deg": 358.68,
+        "filtered_sensor_span_deg": 355.16
+    },
+    "3": {
+        "name": "Index MCP",
+        "motor_id": 9,
+        "commanded_min_ticks": 592,
+        "commanded_max_ticks": 1249,
+        "filtered_sensor_min_deg": 100.99,
+        "filtered_sensor_max_deg": 328.97,
+        "filtered_sensor_span_deg": 227.98
+    },
+    "4": {
+        "name": "Thumb DIP",
+        "motor_id": 13,
+        "commanded_min_ticks": 2000,
+        "commanded_max_ticks": 3042,
+        "filtered_sensor_min_deg": 105.21,
+        "filtered_sensor_max_deg": 220.96,
+        "filtered_sensor_span_deg": 115.75
+    },
+    "5": {
+        "name": "Thumb MCP",
+        "motor_id": 14,
+        "commanded_min_ticks": 1350,
+        "commanded_max_ticks": 2288,
+        "filtered_sensor_min_deg": 100.37,
+        "filtered_sensor_max_deg": 170.68,
+        "filtered_sensor_span_deg": 70.31
+    },
+    "6": {
+        "name": "Thumb CMC",
+        "motor_id": 12,
+        "commanded_min_ticks": 492,
+        "commanded_max_ticks": 1060,
+        "filtered_sensor_min_deg": 22.675,
+        "filtered_sensor_max_deg": 82.27,
+        "filtered_sensor_span_deg": 59.595
+    }
+}

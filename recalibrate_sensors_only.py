@@ -30,6 +30,11 @@ from pathlib import Path
 
 import serial
 
+try:
+    from ruka_hand.control.hand import Hand
+except ImportError:
+    Hand = None
+
 
 RIGHT_HAND_JOINT_GROUPS = [
     {"joint": "Index abduction", "sensor": 0, "motor": 8},
@@ -208,6 +213,8 @@ def _collect_global_limits(
     high_pct: float,
     iqr_k: float,
     min_keep: int,
+    hand=None,
+    out_dir="encoder_logs",
 ) -> dict[str, dict[str, float]]:
     print("\n" + "=" * 72)
     print("Global sensor limits capture")
@@ -216,16 +223,42 @@ def _collect_global_limits(
 
     deg_samples: dict[int, list[float]] = {s: [] for s in sensor_ids}
     total_packets = 0
+    t0 = time.time()
+    trace_log = []
 
     while True:
         packet = reader.read_packet()
         if packet:
+            t_rel = time.time() - t0
+            motor_ticks = [-1] * 16
+            if hand is not None:
+                try:
+                    pos = hand.read_pos()
+                    if pos:
+                        motor_ticks = [int(p) if p is not None else -1 for p in pos[:16]]
+                except Exception:
+                    pass
+
             total_packets += 1
+            raw_vals = [-1] * 7
+            deg_vals = [float("nan")] * 7
+
             for s in sensor_ids:
                 if s in packet:
                     d = float(packet[s]["deg"])
+                    r = int(packet[s].get("raw", -1))
+                    if s < 7:
+                        raw_vals[s] = r
+                        deg_vals[s] = d
                     if math.isfinite(d):
                         deg_samples[s].append(d)
+
+            trace_log.append({
+                "t_rel": t_rel,
+                "raw": raw_vals,
+                "deg": deg_vals,
+                "actual": motor_ticks
+            })
 
             if total_packets % 30 == 0:
                 preview = []
@@ -262,6 +295,21 @@ def _collect_global_limits(
         }
 
     print(f"Captured {total_packets} packets for global limits.")
+
+    if trace_log:
+        Path(out_dir).mkdir(parents=True, exist_ok=True)
+        stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        csv_path = Path(out_dir) / f"{stamp}_calibration_limits_trace.csv"
+        with csv_path.open("w", newline="") as f:
+            w = csv.writer(f)
+            raw_cols = [f"raw_{i}" for i in range(7)]
+            deg_cols = [f"deg_{i}" for i in range(7)]
+            act_cols = [f"act_{i}" for i in range(16)]
+            w.writerow(["t_rel"] + raw_cols + deg_cols + act_cols)
+            for row in trace_log:
+                w.writerow([row["t_rel"]] + row["raw"] + [f"{d:.2f}" for d in row["deg"]] + row["actual"])
+        print(f"Saved live calibration trace log to: {csv_path}")
+
     return out
 
 
@@ -559,6 +607,13 @@ def parse_args() -> argparse.Namespace:
         default="calibration_visualizations",
         help="Output directory for generated sensor range estimation reports.",
     )
+    p.add_argument(
+        "--hand",
+        type=str,
+        default="none",
+        choices=["left", "right", "none"],
+        help="Connect to Hand to also log dynamixel motor positions during limit capture.",
+    )
     return p.parse_args()
 
 
@@ -580,6 +635,17 @@ def main():
     sensor_ids = sorted(sensor_ids)
 
     print(f"Using sensor IDs: {sensor_ids}")
+
+    hand_conn = None
+    if args.hand in ["left", "right"]:
+        if Hand is None:
+            print("WARNING: 'ruka_hand.control.hand' not installed, motor logging disabled.")
+        else:
+            try:
+                print(f"Connecting to {args.hand} hand for motor logging...")
+                hand_conn = Hand(args.hand)
+            except Exception as e:
+                print(f"Failed to connect to hand: {e}")
 
     reader = SensorReader(args.serial_port, args.baud)
     try:
@@ -609,10 +675,16 @@ def main():
                 high_pct=args.limit_high_percentile,
                 iqr_k=args.outlier_iqr_k,
                 min_keep=max(3, args.min_filtered_samples),
+                hand=hand_conn,
             )
 
     finally:
         reader.close()
+        if hand_conn is not None:
+            try:
+                hand_conn.close()
+            except Exception:
+                pass
 
     if not args.no_backup:
         stamp = datetime.now().strftime("%Y%m%d_%H%M%S")

@@ -1,0 +1,51 @@
+{
+    "0": {
+        "min_deg": 88.33,
+        "max_deg": 103.89,
+        "span": 15.560000000000002,
+        "min_motor_ticks": 1638,
+        "max_motor_ticks": 1642
+    },
+    "1": {
+        "min_deg": 29.18,
+        "max_deg": 355.61,
+        "span": 326.43,
+        "min_motor_ticks": 2984,
+        "max_motor_ticks": 2985
+    },
+    "2": {
+        "min_deg": 1.05,
+        "max_deg": 359.56,
+        "span": 358.51,
+        "min_motor_ticks": 2979,
+        "max_motor_ticks": 2993
+    },
+    "3": {
+        "min_deg": 3.6,
+        "max_deg": 354.29,
+        "span": 350.69,
+        "min_motor_ticks": 1245,
+        "max_motor_ticks": 1249
+    },
+    "4": {
+        "min_deg": 105.21,
+        "max_deg": 221.13,
+        "span": 115.92,
+        "min_motor_ticks": 3041,
+        "max_motor_ticks": 3043
+    },
+    "5": {
+        "min_deg": 100.28,
+        "max_deg": 171.39,
+        "span": 71.10999999999999,
+        "min_motor_ticks": 2287,
+        "max_motor_ticks": 2293
+    },
+    "6": {
+        "min_deg": 25.22,
+        "max_deg": 86.04,
+        "span": 60.82000000000001,
+        "min_motor_ticks": 1059,
+        "max_motor_ticks": 1060
+    }
+}
