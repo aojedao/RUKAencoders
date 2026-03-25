@@ -14,7 +14,7 @@ def main():
     args = parser.parse_args()
 
     # Always use the manually filtered boundaries as the ground truth reference
-    json_path = os.path.join(os.path.dirname(__file__), "..", "manually_filtered_paper_limits.json")
+    json_path = os.path.join(os.path.dirname(__file__), "..", "manually_filtered_paper_limits_redo.json")
 
     if not os.path.exists(args.log):
         print(f"ERROR: Cannot find log file: {args.log}")

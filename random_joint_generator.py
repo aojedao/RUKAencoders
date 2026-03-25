@@ -1,9 +1,16 @@
 """random_joint_generator.py
 ==========================
 Loads the strictly filtered paper limits JSON, bounds the hand movements,
-and executes 10 random commanded positions sequentially, updating only one joint at a time.
-Contains a background logging thread that reliably traces actual positioning
-versus strictly interpolated mathematical sensor goals derived exclusively from the JSON bounds.
+and executes sequential random commanded positions one joint at a time.
+
+Usage Example:
+--------------
+To test every joint sequentially with 5 random points each, 
+waiting 8.0 seconds between taking a reading, run:
+
+    python random_joint_generator.py --points-per-joint 5 --wait-time 8.0
+
+(If left blank, it defaults to 5 points and 5.0 seconds).
 """
 
 import argparse
@@ -182,6 +189,8 @@ def main():
     parser.add_argument("--hand", type=str, default="right", choices=["left", "right"])
     parser.add_argument("--json", type=str, default="manually_filtered_paper_limits.json")
     parser.add_argument("--out-dir", type=str, default="random_generator_logs")
+    parser.add_argument("--points-per-joint", type=int, default=5, help="Number of random points to generate per joint")
+    parser.add_argument("--wait-time", type=float, default=5.0, help="Wait time (seconds) between sending each point")
     args = parser.parse_args()
 
     if not os.path.exists(args.json):
@@ -226,22 +235,18 @@ def main():
         time.sleep(2.0)
         
         hand_state = OPEN_POS.copy()
-        joint_keys = list(limits.keys())
         
-        # Guarantee every joint gets selected at least once
-        sequence_keys = list(joint_keys)
-        while len(sequence_keys) < 10:
-            sequence_keys.append(random.choice(joint_keys))
-            
-        # Totally randomize the sequence order
-        random.shuffle(sequence_keys)
+        # Sort JSON keys strictly numerically
+        joint_keys = sorted(list(limits.keys()), key=lambda x: int(x))
+        total_points = args.points_per_joint * len(joint_keys)
 
-        # GENERATE 10 RANDOM COMMANDS
-        print("\n" + "="*50)
-        print("Executing 10 Random Bounded Joint Movements")
-        print("="*50)
+        print("\n" + "="*60)
+        print("Executing Sequential Per-Joint Bounded Random Movements")
+        print(f"({args.points_per_joint} points per joint, {args.wait_time}s wait, {total_points} total sequence moves)")
+        print("="*60)
         
-        for iteration, s_idx_str in enumerate(sequence_keys, start=1):
+        iteration = 1
+        for s_idx_str in joint_keys:
             config = limits[s_idx_str]
             
             s_idx = int(s_idx_str)
@@ -256,34 +261,54 @@ def main():
             safe_min = min(c_min, c_max)
             safe_max = max(c_min, c_max)
             span = safe_max - safe_min
-            
-            current_tick = hand_state[arr_idx]
             min_travel = int(span * 0.15)  # Enforce it moves at least 15% of its span
             
-            if span > 10:
-                for _ in range(50):
+            print(f"\n--- Testing Joint: {name} (Sensor {s_idx} | Motor {m_id}) ---")
+
+            for point_idx in range(1, args.points_per_joint + 1):
+                current_tick = hand_state[arr_idx]
+                
+                new_tick = current_tick
+                if span > 10:
+                    for _ in range(50):
+                        cand = random.randint(safe_min, safe_max)
+                        if abs(cand - current_tick) >= min_travel:
+                            new_tick = cand
+                            break
+                else:
                     new_tick = random.randint(safe_min, safe_max)
-                    if abs(new_tick - current_tick) >= min_travel:
-                        break
-            else:
-                new_tick = random.randint(safe_min, safe_max)
-            
-            print(f"[{iteration}/10] Selecting Sensor {s_idx} ({name} | M{m_id})")
-            print(f"   -> Randomizing M{m_id} bounds [{safe_min}, {safe_max}] -> Generated: {new_tick}")
-            
+                
+                print(f"[{iteration}/{total_points}] {name} Position {point_idx}/{args.points_per_joint}")
+                print(f"   -> Randomizing M{m_id} bounds [{safe_min}, {safe_max}] -> Generated: {new_tick}")
+                
+                target_state = hand_state.copy()
+                target_state[arr_idx] = new_tick
+                
+                phase_name = f"random_{name.replace(' ', '_')}_{point_idx}_S{s_idx}"
+                logger.set_command_state(target_state, phase_name)
+                
+                # Interpolate to new state
+                move_interpolated(hand, io_lock, hand_state, target_state, steps=40)
+                hand_state = target_state.copy()
+                
+                print(f"   -> Holding Position for {args.wait_time} seconds...")
+                time.sleep(args.wait_time)
+                iteration += 1
+
+            # --- Restore joint to Base OPEN position before starting next joint ---
+            print(f"   [!] Restoring {name} (M{m_id}) to OPEN baseline...")
             target_state = hand_state.copy()
-            target_state[arr_idx] = new_tick
+            target_state[arr_idx] = OPEN_POS[arr_idx]
             
-            phase_name = f"random_{iteration}_S{s_idx}"
+            phase_name = f"reset_open_M{m_id}"
             logger.set_command_state(target_state, phase_name)
             
-            # Interpolate to new state taking into account previously shifted motors!
-            move_interpolated(hand, io_lock, hand_state, target_state, steps=40)
-            
+            # Interpolate to reset state smoothly
+            move_interpolated(hand, io_lock, hand_state, target_state, steps=30)
             hand_state = target_state.copy()
             
-            print("   -> Holding Position for 10 seconds...\n")
-            time.sleep(10.0)
+            # Short stabilization delay
+            time.sleep(1.0)
 
     except KeyboardInterrupt:
         print("\nInterrupted.")
@@ -305,7 +330,7 @@ def main():
             
     Path(args.out_dir).mkdir(parents=True, exist_ok=True)
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    csv_path = Path(args.out_dir) / f"{stamp}_random_bounded_commands.csv"
+    csv_path = Path(args.out_dir) / f"{stamp}_{args.points_per_joint}pts_{args.wait_time}s_random_bounded.csv"
     
     # Identify which motors map directly to JSON sensors to avoid plotting ghosts
     used_m_ids = sorted([int(config["motor_id"]) for config in limits.values()])
